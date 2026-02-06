@@ -1,0 +1,1736 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ocean Plastic - Interactive Visualization</title>
+    <style>
+        /* ============================================
+           CSS Variables & Reset
+           ============================================ */
+        :root {
+            --color-bg-dark: #d4e8f0;
+            --color-bg-medium: #c2dfe8;
+            --color-text-primary: #0a3d52;
+            --color-text-secondary: #2d5f6f;
+            --color-accent: #00a8cc;
+            --color-accent-glow: rgba(0, 168, 204, 0.3);
+            --color-warning: #ff6b6b;
+            --color-success: #51cf66;
+            
+            /* Particle colors */
+            --color-fibre: #ff6b9d;
+            --color-film: #4ecdc4;
+            --color-granule: #ffd93d;
+            --color-fragment: #a8dadc;
+            
+            --font-display: 'Space Mono', 'Courier New', monospace;
+            --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            
+            --transition-smooth: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: var(--font-body);
+            background: var(--color-bg-dark);
+            color: var(--color-text-primary);
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        /* ============================================
+           Layout Structure
+           ============================================ */
+        #app-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            position: relative;
+        }
+
+        #canvas-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #particle-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            cursor: crosshair;
+        }
+
+        /* ============================================
+           Control Panel
+           ============================================ */
+        #control-panel {
+            width: 380px;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(248, 250, 252, 0.98));
+            backdrop-filter: blur(20px);
+            border-left: 1px solid rgba(0, 0, 0, 0.08);
+            padding: 40px 30px;
+            overflow-y: auto;
+            z-index: 100;
+            box-shadow: -10px 0 40px rgba(0, 0, 0, 0.1);
+        }
+
+        #control-panel::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        #control-panel::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.03);
+        }
+
+        #control-panel::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 3px;
+        }
+
+        .logo {
+            font-family: var(--font-display);
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            margin-bottom: 15px;
+            background: linear-gradient(135deg, var(--color-accent), #7b68ee);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            font-size: 13px;
+            color: var(--color-text-secondary);
+            margin-bottom: 30px;
+            line-height: 1.6;
+            letter-spacing: 0.3px;
+        }
+
+        .description {
+            font-size: 14px;
+            line-height: 1.8;
+            color: var(--color-text-secondary);
+            margin-bottom: 40px;
+            padding: 20px;
+            background: rgba(33, 150, 243, 0.05);
+            border-radius: 8px;
+            border: 1px solid rgba(33, 150, 243, 0.15);
+        }
+
+        /* ============================================
+           Control Sections
+           ============================================ */
+        .control-section {
+            margin-bottom: 35px;
+        }
+
+        .control-label {
+            font-family: var(--font-display);
+            font-size: 11px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--color-text-secondary);
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .control-label::before {
+            content: '';
+            width: 3px;
+            height: 12px;
+            background: var(--color-accent);
+            border-radius: 2px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            flex: 1;
+            min-width: 100px;
+            padding: 12px 20px;
+            background: rgba(0, 0, 0, 0.03);
+            border: 1px solid rgba(0, 0, 0, 0.15);
+            color: var(--color-text-primary);
+            font-family: var(--font-body);
+            font-size: 13px;
+            font-weight: 500;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: var(--transition-smooth);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(33, 150, 243, 0.1), transparent);
+            transition: left 0.5s;
+        }
+
+        .btn:hover::before {
+            left: 100%;
+        }
+
+        .btn:hover {
+            border-color: var(--color-accent);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px var(--color-accent-glow);
+        }
+
+        .btn.active {
+            background: var(--color-accent);
+            border-color: var(--color-accent);
+            color: white;
+            box-shadow: 0 5px 20px var(--color-accent-glow);
+        }
+
+        .btn-action {
+            width: 100%;
+            padding: 16px;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            background: linear-gradient(135deg, rgba(74, 158, 255, 0.2), rgba(123, 104, 238, 0.2));
+            border: 1px solid var(--color-accent);
+        }
+
+        .btn-action:hover {
+            background: linear-gradient(135deg, rgba(74, 158, 255, 0.3), rgba(123, 104, 238, 0.3));
+        }
+
+        .btn-action.deposit-mode {
+            background: linear-gradient(135deg, rgba(255, 107, 157, 0.2), rgba(255, 107, 107, 0.2));
+            border-color: var(--color-warning);
+        }
+
+        .btn-clear {
+            background: rgba(255, 107, 107, 0.1);
+            border-color: var(--color-warning);
+        }
+
+        /* ============================================
+           Data Panel
+           ============================================ */
+        #data-panel {
+            margin-top: 20px;
+            padding: 20px;
+            background: rgba(33, 150, 243, 0.05);
+            border: 1px solid rgba(33, 150, 243, 0.15);
+            border-radius: 8px;
+            max-height: 0;
+            overflow: hidden;
+            opacity: 0;
+            transition: var(--transition-smooth);
+        }
+
+        #data-panel.visible {
+            max-height: 600px;
+            opacity: 1;
+            margin-bottom: 20px;
+        }
+
+        .data-item {
+            margin-bottom: 20px;
+        }
+
+        .data-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .data-type {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+
+        .data-type-name {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 500;
+        }
+
+        .data-color-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: 2px solid rgba(0, 0, 0, 0.2);
+        }
+
+        .data-percentage {
+            font-family: var(--font-display);
+            color: var(--color-accent);
+        }
+
+        .data-bar {
+            height: 6px;
+            background: rgba(0, 0, 0, 0.08);
+            border-radius: 3px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .data-bar-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 0 10px currentColor;
+        }
+
+        /* ============================================
+           Notifications & Tooltips
+           ============================================ */
+        #notification {
+            position: fixed;
+            top: 30px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-100px);
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            padding: 20px 30px;
+            border-radius: 8px;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            font-size: 14px;
+            color: var(--color-text-primary);
+            z-index: 1000;
+            opacity: 0;
+            transition: var(--transition-smooth);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+            max-width: 400px;
+            text-align: center;
+        }
+
+        #notification.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+
+        .particle-info {
+            position: fixed;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            padding: 15px 20px;
+            border-radius: 6px;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 999;
+            opacity: 0;
+            transition: opacity 0.3s;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+        }
+
+        .particle-info.visible {
+            opacity: 1;
+        }
+
+        .particle-info-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 15px;
+            margin-bottom: 6px;
+            color: var(--color-text-secondary);
+        }
+
+        .particle-info-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .particle-info-value {
+            color: var(--color-text-primary);
+            font-weight: 600;
+        }
+
+        /* ============================================
+           Loading State
+           ============================================ */
+        #loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #006994;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            transition: opacity 0.5s, visibility 0.5s;
+        }
+
+        #loading.hidden {
+            opacity: 0;
+            visibility: hidden;
+        }
+
+        .loading-text {
+            font-family: var(--font-display);
+            font-size: 18px;
+            color: var(--color-accent);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+
+        /* ============================================
+           Stats Display
+           ============================================ */
+        #stats {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            padding: 15px 20px;
+            border-radius: 6px;
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            font-family: var(--font-display);
+            font-size: 11px;
+            color: var(--color-text-secondary);
+            z-index: 100;
+        }
+
+        .stat-row {
+            margin-bottom: 5px;
+        }
+
+        .stat-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .stat-value {
+            color: var(--color-accent);
+        }
+
+        /* ============================================
+           Zoom Indicator
+           ============================================ */
+        #zoom-indicator {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            padding: 12px 18px;
+            border-radius: 6px;
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            font-family: var(--font-display);
+            font-size: 11px;
+            color: var(--color-text-secondary);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        #zoom-indicator.visible {
+            opacity: 1;
+        }
+
+        .zoom-icon {
+            font-size: 16px;
+            color: var(--color-accent);
+        }
+
+        #zoom-level {
+            color: var(--color-accent);
+            font-weight: bold;
+            min-width: 35px;
+        }
+
+        /* ============================================
+           Help Button
+           ============================================ */
+        #help-button {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border: 2px solid var(--color-accent);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 24px;
+            font-weight: bold;
+            color: var(--color-accent);
+            z-index: 101;
+            transition: var(--transition-smooth);
+            box-shadow: 0 5px 20px rgba(33, 150, 243, 0.2);
+        }
+
+        #help-button:hover {
+            transform: scale(1.1) rotate(15deg);
+            box-shadow: 0 8px 30px rgba(33, 150, 243, 0.4);
+            background: var(--color-accent);
+            color: white;
+        }
+
+        #help-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(5px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        #help-modal.show {
+            display: flex;
+            opacity: 1;
+        }
+
+        .help-content {
+            background: white;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            border-radius: 12px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            position: relative;
+            animation: slideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .help-close {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 36px;
+            height: 36px;
+            background: rgba(0, 0, 0, 0.05);
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: var(--transition-smooth);
+        }
+
+        .help-close:hover {
+            background: var(--color-warning);
+            color: white;
+            transform: rotate(90deg);
+        }
+
+        .help-title {
+            font-family: var(--font-display);
+            font-size: 28px;
+            color: var(--color-text-primary);
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid var(--color-accent);
+        }
+
+        .help-section {
+            margin-bottom: 25px;
+        }
+
+        .help-section h3 {
+            font-family: var(--font-display);
+            font-size: 16px;
+            color: var(--color-accent);
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .help-section p {
+            color: var(--color-text-secondary);
+            line-height: 1.8;
+            margin-bottom: 12px;
+        }
+
+        .help-section ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .help-section li {
+            color: var(--color-text-secondary);
+            line-height: 1.8;
+            margin-bottom: 8px;
+            padding-left: 20px;
+            position: relative;
+        }
+
+        .help-section li::before {
+            content: '→';
+            position: absolute;
+            left: 0;
+            color: var(--color-accent);
+            font-weight: bold;
+        }
+
+        .help-highlight {
+            background: rgba(33, 150, 243, 0.1);
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 3px solid var(--color-accent);
+            margin: 20px 0;
+        }
+
+        /* ============================================
+           Responsive Design
+           ============================================ */
+        @media (max-width: 968px) {
+            #app-container {
+                flex-direction: column;
+            }
+
+            #control-panel {
+                width: 100%;
+                max-height: 50vh;
+                border-left: none;
+                border-top: 1px solid rgba(0, 0, 0, 0.08);
+                order: 2;
+            }
+
+            #canvas-container {
+                order: 1;
+            }
+
+            .logo {
+                font-size: 24px;
+            }
+
+            .description {
+                font-size: 13px;
+            }
+
+            #stats {
+                bottom: auto;
+                top: 20px;
+            }
+
+            #zoom-indicator {
+                bottom: 80px;
+                right: 15px;
+                font-size: 10px;
+            }
+
+            #help-button {
+                top: 80px;
+                right: 15px;
+                width: 45px;
+                height: 45px;
+                font-size: 20px;
+            }
+
+            .help-content {
+                padding: 30px 25px;
+                max-height: 85vh;
+            }
+
+            .help-title {
+                font-size: 24px;
+            }
+        }
+
+        /* ============================================
+           Animations
+           ============================================ */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .control-section {
+            animation: fadeIn 0.6s ease-out backwards;
+        }
+
+        .control-section:nth-child(1) { animation-delay: 0.1s; }
+        .control-section:nth-child(2) { animation-delay: 0.2s; }
+        .control-section:nth-child(3) { animation-delay: 0.3s; }
+        .control-section:nth-child(4) { animation-delay: 0.4s; }
+        .control-section:nth-child(5) { animation-delay: 0.5s; }
+    </style>
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loading">
+        <div class="loading-text">Cargando océano...</div>
+    </div>
+
+    <!-- Help Button -->
+    <div id="help-button" title="Información del proyecto">?</div>
+
+    <!-- Help Modal -->
+    <div id="help-modal">
+        <div class="help-content">
+            <button class="help-close">×</button>
+            <h2 class="help-title">Sobre este Proyecto</h2>
+            
+            <div class="help-section">
+                <h3>🌊 La Crisis del Plástico Oceánico</h3>
+                <p>Los océanos están siendo devastados por la contaminación plástica. Se estima que para 2050 habrá más plástico que peces en el mar si continuamos al ritmo actual.</p>
+                <p>Esta visualización representa los microplásticos que flotan en las corrientes oceánicas, causando daños irreparables a los ecosistemas marinos.</p>
+            </div>
+
+            <div class="help-highlight">
+                <strong>Dato impactante:</strong> Cada minuto, el equivalente a un camión de basura lleno de plástico es vertido en el océano. Más de 800 especies marinas están afectadas por esta contaminación.
+            </div>
+
+            <div class="help-section">
+                <h3>🎯 Objetivo del Proyecto</h3>
+                <p>Esta experiencia interactiva tiene como objetivos:</p>
+                <ul>
+                    <li>Visualizar la magnitud de la contaminación plástica en los océanos</li>
+                    <li>Concientizar sobre el impacto en la vida marina y los ecosistemas</li>
+                    <li>Demostrar cómo las corrientes y condiciones oceánicas dispersan los contaminantes</li>
+                    <li>Proyectar el impacto futuro si no tomamos acción inmediata</li>
+                </ul>
+            </div>
+
+            <div class="help-section">
+                <h3>🔬 Tipos de Microplásticos Oceánicos</h3>
+                <ul>
+                    <li><strong style="color: #ff6b9d;">Fibras:</strong> De redes de pesca, cuerdas y textiles sintéticos</li>
+                    <li><strong style="color: #4ecdc4;">Películas:</strong> Bolsas plásticas y envolturas flotantes</li>
+                    <li><strong style="color: #ffd93d;">Gránulos:</strong> Pellets industriales y microesferas de cosméticos</li>
+                    <li><strong style="color: #a8dadc;">Fragmentos:</strong> Botellas, juguetes y desechos fragmentados</li>
+                </ul>
+            </div>
+
+            <div class="help-section">
+                <h3>💡 ¿Qué Puedes Hacer?</h3>
+                <ul>
+                    <li>Elimina plásticos de un solo uso de tu vida</li>
+                    <li>Participa en limpiezas de playas y costas</li>
+                    <li>Elige productos sin microplásticos</li>
+                    <li>Recicla correctamente y reduce tu consumo de plástico</li>
+                    <li>Apoya organizaciones que luchan contra la contaminación oceánica</li>
+                    <li>Consume pescado y mariscos de fuentes sostenibles</li>
+                </ul>
+            </div>
+
+            <div class="help-highlight">
+                <strong>Recuerda:</strong> Los océanos son el pulmón del planeta, produciendo más del 50% del oxígeno que respiramos. Protegerlos es proteger nuestra propia supervivencia.
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App Container -->
+    <div id="app-container">
+        <!-- Canvas Container -->
+        <div id="canvas-container">
+            <canvas id="particle-canvas"></canvas>
+            
+            <!-- Stats Display -->
+            <div id="stats">
+                <div class="stat-row">Partículas: <span class="stat-value" id="particle-count">0</span></div>
+                <div class="stat-row">FPS: <span class="stat-value" id="fps-counter">60</span></div>
+            </div>
+
+            <!-- Zoom Indicator -->
+            <div id="zoom-indicator">
+                <span class="zoom-icon">🔍</span>
+                <span>Zoom:</span>
+                <span id="zoom-level">100%</span>
+            </div>
+        </div>
+
+        <!-- Control Panel -->
+        <div id="control-panel">
+            <h1 class="logo">OCEAN PLASTIC</h1>
+            <p class="subtitle">Visualización interactiva de microplásticos en el océano</p>
+            
+            <div class="description">
+                Cada año, entre 8 y 12 millones de toneladas de plástico terminan en nuestros océanos. Estos desechos se fragmentan en microplásticos que flotan en las corrientes marinas, son ingeridos por la vida marina y contaminan todo el ecosistema acuático.
+            </div>
+
+            <!-- Climate Control -->
+            <div class="control-section">
+                <div class="control-label">Condiciones del Agua</div>
+                <div class="button-group">
+                    <button class="btn active" data-weather="clear">Calma</button>
+                    <button class="btn" data-weather="rain">Tormenta</button>
+                    <button class="btn" data-weather="snow">Corriente Fuerte</button>
+                </div>
+            </div>
+
+            <!-- Environment Control -->
+            <div class="control-section">
+                <div class="control-label">Zona Oceánica</div>
+                <div class="button-group">
+                    <button class="btn active" data-environment="urban">Costera</button>
+                    <button class="btn" data-environment="remote">Mar Abierto</button>
+                </div>
+            </div>
+
+            <!-- Time Control -->
+            <div class="control-section">
+                <div class="control-label">Proyección Temporal</div>
+                <div class="button-group">
+                    <button class="btn active" data-time="now">Ahora</button>
+                    <button class="btn" data-time="future">Futuro (2050)</button>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="control-section">
+                <div class="control-label">Interacciones</div>
+                <button class="btn-action" id="toggle-deposit">Click para depositar desechos</button>
+                <button class="btn-action btn-clear" id="clear-particles">Limpiar agua</button>
+                <button class="btn-action" id="toggle-data">Mostrar datos de composición</button>
+            </div>
+
+            <!-- Data Panel -->
+            <div id="data-panel">
+                <div class="control-label" style="margin-bottom: 20px;">Composición de Partículas</div>
+                
+                <div class="data-item">
+                    <div class="data-type">
+                        <div class="data-type-name">
+                            <div class="data-color-indicator" style="background: var(--color-fibre);"></div>
+                            <span>Fibras</span>
+                        </div>
+                        <span class="data-percentage" id="fibres-percent">35%</span>
+                    </div>
+                    <div class="data-bar">
+                        <div class="data-bar-fill" style="background: var(--color-fibre); width: 0%;" data-target="35"></div>
+                    </div>
+                </div>
+
+                <div class="data-item">
+                    <div class="data-type">
+                        <div class="data-type-name">
+                            <div class="data-color-indicator" style="background: var(--color-film);"></div>
+                            <span>Películas</span>
+                        </div>
+                        <span class="data-percentage" id="films-percent">28%</span>
+                    </div>
+                    <div class="data-bar">
+                        <div class="data-bar-fill" style="background: var(--color-film); width: 0%;" data-target="28"></div>
+                    </div>
+                </div>
+
+                <div class="data-item">
+                    <div class="data-type">
+                        <div class="data-type-name">
+                            <div class="data-color-indicator" style="background: var(--color-granule);"></div>
+                            <span>Gránulos</span>
+                        </div>
+                        <span class="data-percentage" id="granules-percent">22%</span>
+                    </div>
+                    <div class="data-bar">
+                        <div class="data-bar-fill" style="background: var(--color-granule); width: 0%;" data-target="22"></div>
+                    </div>
+                </div>
+
+                <div class="data-item">
+                    <div class="data-type">
+                        <div class="data-type-name">
+                            <div class="data-color-indicator" style="background: var(--color-fragment);"></div>
+                            <span>Fragmentos</span>
+                        </div>
+                        <span class="data-percentage" id="fragments-percent">15%</span>
+                    </div>
+                    <div class="data-bar">
+                        <div class="data-bar-fill" style="background: var(--color-fragment); width: 0%;" data-target="15"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="notification"></div>
+
+    <!-- Particle Info Tooltip -->
+    <div class="particle-info" id="particle-info">
+        <div class="particle-info-row">
+            <span>Tipo:</span>
+            <span class="particle-info-value" id="info-type">-</span>
+        </div>
+        <div class="particle-info-row">
+            <span>Composición:</span>
+            <span class="particle-info-value" id="info-composition">-</span>
+        </div>
+        <div class="particle-info-row">
+            <span>Origen:</span>
+            <span class="particle-info-value" id="info-origin">-</span>
+        </div>
+        <div class="particle-info-row">
+            <span>Tamaño:</span>
+            <span class="particle-info-value" id="info-size">-</span>
+        </div>
+        <div class="particle-info-row">
+            <span>Distancia:</span>
+            <span class="particle-info-value" id="info-distance">-</span>
+        </div>
+    </div>
+
+    <!-- Three.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <!-- Main Application Script -->
+    <script>
+        // ============================================
+        // STATE MANAGEMENT
+        // ============================================
+        const state = {
+            currentWeather: 'clear',
+            currentEnvironment: 'urban',
+            currentTimeMode: 'now',
+            depositMode: false,
+            dataVisible: false,
+            
+            // Particle settings based on current state
+            particleSettings: {
+                maxParticles: 800,
+                spawnRate: 2,
+                baseVelocity: { x: 0.05, y: -0.08, z: 0.05 },
+                turbulence: 0.06,
+                particleSize: { min: 0.08, max: 0.32 }
+            }
+        };
+
+        // Particle type definitions
+        const PARTICLE_TYPES = {
+            fibre: {
+                color: 0xff6b9d,
+                probability: 0.35,
+                shape: 'line',
+                origins: ['Redes de pesca', 'Cuerdas náuticas', 'Textiles sintéticos', 'Líneas de pesca'],
+                compositions: ['Nylon', 'Poliéster', 'Polipropileno', 'Poliamida'],
+                sizeMultiplier: 1.2
+            },
+            film: {
+                color: 0x4ecdc4,
+                probability: 0.28,
+                shape: 'quad',
+                origins: ['Bolsas plásticas', 'Envoltorios', 'Botellas degradadas', 'Film de embalaje'],
+                compositions: ['Polietileno', 'Polipropileno', 'PVC', 'LDPE'],
+                sizeMultiplier: 1.0
+            },
+            granule: {
+                color: 0xffd93d,
+                probability: 0.22,
+                shape: 'sphere',
+                origins: ['Pellets industriales', 'Microesferas cosméticas', 'Pérdida de carga', 'Productos de limpieza'],
+                compositions: ['Polietileno', 'Polipropileno', 'Polimetilmetacrilato', 'Polietileno tereftalato'],
+                sizeMultiplier: 0.8
+            },
+            fragment: {
+                color: 0xa8dadc,
+                probability: 0.15,
+                shape: 'fragment',
+                origins: ['Botellas rotas', 'Juguetes degradados', 'Utensilios fragmentados', 'Contenedores'],
+                compositions: ['PET', 'Poliestireno', 'Policarbonato', 'Polipropileno'],
+                sizeMultiplier: 0.9
+            }
+        };
+
+        // ============================================
+        // THREE.JS SETUP
+        // ============================================
+        let scene, camera, renderer;
+        let particles = [];
+        let particleMeshes = [];
+        let time = 0;
+        let frameCount = 0;
+        let lastFrameTime = Date.now();
+
+        function initThreeJS() {
+            // Scene setup
+            scene = new THREE.Scene();
+            
+            // Create ocean gradient background
+            const canvas = document.createElement('canvas');
+            canvas.width = 2;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            const gradient = ctx.createLinearGradient(0, 0, 0, 512);
+            gradient.addColorStop(0, '#006994'); // Deep ocean blue
+            gradient.addColorStop(0.5, '#1e88a8'); // Mid ocean
+            gradient.addColorStop(1, '#4fa8c5'); // Shallow water
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 2, 512);
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            scene.background = texture;
+
+            // Camera setup
+            const container = document.getElementById('canvas-container');
+            camera = new THREE.PerspectiveCamera(
+                75,
+                container.clientWidth / container.clientHeight,
+                0.1,
+                1000
+            );
+            camera.position.z = 15;
+
+            // Renderer setup
+            renderer = new THREE.WebGLRenderer({
+                canvas: document.getElementById('particle-canvas'),
+                antialias: true,
+                alpha: false
+            });
+            renderer.setSize(container.clientWidth, container.clientHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+            // Ambient light
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            scene.add(ambientLight);
+
+            // Point light for some depth
+            const pointLight = new THREE.PointLight(0x4a9eff, 1, 100);
+            pointLight.position.set(0, 10, 10);
+            scene.add(pointLight);
+        }
+
+        // ============================================
+        // PARTICLE CLASS
+        // ============================================
+        class Particle {
+            constructor(type, position) {
+                this.type = type;
+                this.typeData = PARTICLE_TYPES[type];
+                
+                // Position
+                this.position = position || {
+                    x: (Math.random() - 0.5) * 30,
+                    y: Math.random() * 20 - 5,
+                    z: (Math.random() - 0.5) * 30
+                };
+                
+                // Velocity
+                this.velocity = {
+                    x: (Math.random() - 0.5) * 0.05,
+                    y: -0.08 - Math.random() * 0.05,
+                    z: (Math.random() - 0.5) * 0.05
+                };
+                
+                // Properties
+                this.size = (state.particleSettings.particleSize.min + 
+                           Math.random() * (state.particleSettings.particleSize.max - state.particleSettings.particleSize.min)) *
+                           this.typeData.sizeMultiplier;
+                
+                this.rotation = Math.random() * Math.PI * 2;
+                this.rotationSpeed = (Math.random() - 0.5) * 0.02;
+                
+                // Metadata
+                this.origin = this.typeData.origins[Math.floor(Math.random() * this.typeData.origins.length)];
+                this.composition = this.typeData.compositions[Math.floor(Math.random() * this.typeData.compositions.length)];
+                this.distance = Math.floor(Math.random() * 500 + 50); // km
+                this.age = 0;
+                this.lifespan = 1000 + Math.random() * 2000;
+                
+                // Create mesh
+                this.mesh = this.createMesh();
+                scene.add(this.mesh);
+            }
+
+            createMesh() {
+                let geometry, material;
+                
+                // More consistent appearance within each type
+                material = new THREE.MeshPhongMaterial({
+                    color: this.typeData.color,
+                    transparent: true,
+                    opacity: 0.75,
+                    emissive: this.typeData.color,
+                    emissiveIntensity: 0.3,
+                    shininess: 30
+                });
+
+                // Size variation is now minimal within each type
+                // Base size is now 4x larger
+                const baseSize = this.size;
+
+                switch (this.typeData.shape) {
+                    case 'line': // Fibre - thin elongated cylinders
+                        geometry = new THREE.CylinderGeometry(
+                            baseSize * 0.12, 
+                            baseSize * 0.12, 
+                            baseSize * 5, 
+                            8
+                        );
+                        break;
+                    case 'quad': // Film - flat rectangles
+                        geometry = new THREE.PlaneGeometry(
+                            baseSize * 2.5, 
+                            baseSize * 1.8
+                        );
+                        material.side = THREE.DoubleSide;
+                        break;
+                    case 'sphere': // Granule - perfect spheres
+                        geometry = new THREE.SphereGeometry(baseSize * 1.2, 12, 12);
+                        break;
+                    case 'fragment': // Fragment - irregular tetrahedrons
+                        geometry = new THREE.TetrahedronGeometry(baseSize * 1.4, 0);
+                        break;
+                    default:
+                        geometry = new THREE.SphereGeometry(baseSize, 10, 10);
+                }
+
+                const mesh = new THREE.Mesh(geometry, material);
+                mesh.position.set(this.position.x, this.position.y, this.position.z);
+                mesh.userData.particle = this;
+                
+                return mesh;
+            }
+
+            update(deltaTime) {
+                // Apply weather effects
+                this.applyWeatherEffects();
+                
+                // Update position
+                this.position.x += this.velocity.x * deltaTime;
+                this.position.y += this.velocity.y * deltaTime;
+                this.position.z += this.velocity.z * deltaTime;
+                
+                // Apply ocean current turbulence with wave-like motion
+                const turbulence = state.particleSettings.turbulence;
+                const waveFrequency = 0.0005;
+                const waveAmplitude = 0.03;
+                
+                // Horizontal wave motion (like ocean currents)
+                this.position.x += Math.sin(time * waveFrequency + this.position.y * 0.5) * waveAmplitude;
+                this.position.z += Math.cos(time * waveFrequency + this.position.x * 0.5) * waveAmplitude;
+                
+                // Vertical bobbing (like floating in water)
+                this.position.y += Math.sin(time * 0.001 + this.position.x) * 0.01;
+                
+                // Additional turbulence
+                this.position.x += Math.sin(time * 0.001 + this.position.y) * turbulence;
+                this.position.z += Math.cos(time * 0.001 + this.position.x) * turbulence;
+                
+                // Rotation (tumbling in water)
+                this.rotation += this.rotationSpeed;
+                
+                // Update mesh
+                this.mesh.position.set(this.position.x, this.position.y, this.position.z);
+                this.mesh.rotation.y = this.rotation;
+                this.mesh.rotation.x = this.rotation * 0.5;
+                
+                // Age
+                this.age += deltaTime;
+                
+                // Fade out near end of life
+                if (this.age > this.lifespan * 0.8) {
+                    const fadeProgress = (this.age - this.lifespan * 0.8) / (this.lifespan * 0.2);
+                    this.mesh.material.opacity = 0.75 * (1 - fadeProgress);
+                }
+                
+                // Recycle particle if out of bounds or too old
+                if (this.position.y < -15 || this.age > this.lifespan) {
+                    this.recycle();
+                }
+            }
+
+            applyWeatherEffects() {
+                switch (state.currentWeather) {
+                    case 'rain':
+                        // Storm - strong downward and horizontal movement
+                        this.velocity.y = -0.25 - Math.random() * 0.15;
+                        this.velocity.x += (Math.random() - 0.5) * 0.1;
+                        this.velocity.z += (Math.random() - 0.5) * 0.1;
+                        break;
+                    case 'snow':
+                        // Strong current - fast horizontal movement
+                        this.velocity.x += (Math.random() - 0.5) * 0.15;
+                        this.velocity.z += (Math.random() - 0.5) * 0.15;
+                        this.velocity.y = -0.03 - Math.random() * 0.02;
+                        break;
+                    case 'clear':
+                        // Calm water - gentle floating and sinking
+                        const baseY = -0.08 - Math.random() * 0.04;
+                        this.velocity.y = this.velocity.y * 0.98 + baseY * 0.02;
+                        break;
+                }
+            }
+
+            recycle() {
+                // Reset position to top
+                this.position.x = (Math.random() - 0.5) * 30;
+                this.position.y = 15 + Math.random() * 5;
+                this.position.z = (Math.random() - 0.5) * 30;
+                
+                // Reset properties with slower velocities
+                this.velocity.x = (Math.random() - 0.5) * 0.05;
+                this.velocity.y = -0.08 - Math.random() * 0.05;
+                this.velocity.z = (Math.random() - 0.5) * 0.05;
+                
+                this.age = 0;
+                this.mesh.material.opacity = 0.7;
+            }
+
+            destroy() {
+                scene.remove(this.mesh);
+                this.mesh.geometry.dispose();
+                this.mesh.material.dispose();
+            }
+        }
+
+        // ============================================
+        // PARTICLE MANAGEMENT
+        // ============================================
+        function getRandomParticleType() {
+            const rand = Math.random();
+            let cumulative = 0;
+            
+            for (const [type, data] of Object.entries(PARTICLE_TYPES)) {
+                cumulative += data.probability;
+                if (rand <= cumulative) {
+                    return type;
+                }
+            }
+            
+            return 'fragment';
+        }
+
+        function createParticles(count) {
+            for (let i = 0; i < count; i++) {
+                if (particles.length >= state.particleSettings.maxParticles) break;
+                
+                const type = getRandomParticleType();
+                const particle = new Particle(type);
+                particles.push(particle);
+            }
+        }
+
+        function createParticleAtPosition(x, y) {
+            if (particles.length >= state.particleSettings.maxParticles) return;
+            
+            // Convert screen coordinates to 3D world coordinates
+            const rect = renderer.domElement.getBoundingClientRect();
+            const mouse = new THREE.Vector2();
+            mouse.x = ((x - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((y - rect.top) / rect.height) * 2 + 1;
+            
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(mouse, camera);
+            
+            // Create particle at clicked position
+            const distance = 10;
+            const position = new THREE.Vector3();
+            position.copy(raycaster.ray.direction).multiplyScalar(distance);
+            position.add(camera.position);
+            
+            // Create burst of particles
+            const burstCount = 5 + Math.floor(Math.random() * 10);
+            for (let i = 0; i < burstCount; i++) {
+                const type = getRandomParticleType();
+                const burstPos = {
+                    x: position.x + (Math.random() - 0.5) * 2,
+                    y: position.y + (Math.random() - 0.5) * 2,
+                    z: position.z + (Math.random() - 0.5) * 2
+                };
+                const particle = new Particle(type, burstPos);
+                particles.push(particle);
+            }
+        }
+
+        function updateParticles(deltaTime) {
+            // Update existing particles
+            particles.forEach(particle => particle.update(deltaTime));
+            
+            // Spawn new particles
+            if (particles.length < state.particleSettings.maxParticles) {
+                if (Math.random() < state.particleSettings.spawnRate * 0.01) {
+                    createParticles(1);
+                }
+            }
+        }
+
+        function clearAllParticles() {
+            particles.forEach(particle => particle.destroy());
+            particles = [];
+            
+            // Show notification
+            showNotification('El plástico oceánico no desaparece. Se fragmenta en pedazos más pequeños y permanece durante siglos, contaminando la cadena alimentaria.');
+            
+            // Recreate particles after a moment
+            setTimeout(() => {
+                updateParticleSettings();
+            }, 2000);
+        }
+
+        // ============================================
+        // STATE UPDATES
+        // ============================================
+        function updateParticleSettings() {
+            let maxParticles = 800;
+            let spawnRate = 2;
+            let turbulence = 0.06;
+            
+            // Environment effects
+            if (state.currentEnvironment === 'urban') {
+                // Coastal - more pollution from human activity
+                maxParticles = 1000;
+                spawnRate = 3;
+                // Increase film and fragment probability (bottles, bags)
+                PARTICLE_TYPES.fibre.probability = 0.30;
+                PARTICLE_TYPES.film.probability = 0.35;
+                PARTICLE_TYPES.granule.probability = 0.20;
+                PARTICLE_TYPES.fragment.probability = 0.15;
+            } else {
+                // Open ocean - less density but more fibres from fishing
+                maxParticles = 500;
+                spawnRate = 1.5;
+                // More fishing gear debris
+                PARTICLE_TYPES.fibre.probability = 0.40;
+                PARTICLE_TYPES.film.probability = 0.25;
+                PARTICLE_TYPES.granule.probability = 0.20;
+                PARTICLE_TYPES.fragment.probability = 0.15;
+            }
+            
+            // Time effects
+            if (state.currentTimeMode === 'future') {
+                maxParticles *= 2;
+                spawnRate *= 2;
+                
+                // Change background color for future - heavily polluted ocean
+                const canvas = document.createElement('canvas');
+                canvas.width = 2;
+                canvas.height = 512;
+                const ctx = canvas.getContext('2d');
+                const gradient = ctx.createLinearGradient(0, 0, 0, 512);
+                gradient.addColorStop(0, '#2d4a4a'); // Murky deep water
+                gradient.addColorStop(0.5, '#456060'); // Polluted mid-ocean
+                gradient.addColorStop(1, '#5a7575'); // Contaminated surface
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, 2, 512);
+                
+                const texture = new THREE.CanvasTexture(canvas);
+                scene.background = texture;
+            } else {
+                // Reset to normal ocean background
+                const canvas = document.createElement('canvas');
+                canvas.width = 2;
+                canvas.height = 512;
+                const ctx = canvas.getContext('2d');
+                const gradient = ctx.createLinearGradient(0, 0, 0, 512);
+                gradient.addColorStop(0, '#006994'); // Deep ocean blue
+                gradient.addColorStop(0.5, '#1e88a8'); // Mid ocean
+                gradient.addColorStop(1, '#4fa8c5'); // Shallow water
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, 2, 512);
+                
+                const texture = new THREE.CanvasTexture(canvas);
+                scene.background = texture;
+            }
+            
+            // Weather effects on turbulence
+            if (state.currentWeather === 'snow') {
+                turbulence = 0.10;
+            } else if (state.currentWeather === 'rain') {
+                turbulence = 0.02;
+            }
+            
+            state.particleSettings.maxParticles = maxParticles;
+            state.particleSettings.spawnRate = spawnRate;
+            state.particleSettings.turbulence = turbulence;
+            
+            // Adjust current particle count
+            if (particles.length > maxParticles) {
+                const toRemove = particles.length - maxParticles;
+                for (let i = 0; i < toRemove; i++) {
+                    const particle = particles.pop();
+                    particle.destroy();
+                }
+            } else if (particles.length < maxParticles * 0.5) {
+                createParticles(Math.floor(maxParticles * 0.3));
+            }
+        }
+
+        // ============================================
+        // ANIMATION LOOP
+        // ============================================
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            const currentTime = Date.now();
+            const deltaTime = Math.min((currentTime - lastFrameTime) / 16, 2);
+            lastFrameTime = currentTime;
+            
+            time += deltaTime;
+            frameCount++;
+            
+            // Update FPS counter
+            if (frameCount % 30 === 0) {
+                const fps = Math.round(1000 / (currentTime - lastFrameTime));
+                document.getElementById('fps-counter').textContent = fps;
+            }
+            
+            // Update particles
+            updateParticles(deltaTime);
+            
+            // Update particle count display
+            document.getElementById('particle-count').textContent = particles.length;
+            
+            // Update zoom smoothly
+            updateZoom();
+            
+            // Camera subtle movement (excluding z-axis which is now controlled by zoom)
+            camera.position.x = Math.sin(time * 0.0001) * 0.5;
+            camera.position.y = Math.cos(time * 0.00015) * 0.3;
+            
+            // Render
+            renderer.render(scene, camera);
+        }
+
+        // ============================================
+        // UI EVENT HANDLERS
+        // ============================================
+        function initUIControls() {
+            // Weather buttons
+            document.querySelectorAll('[data-weather]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('[data-weather]').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    state.currentWeather = btn.dataset.weather;
+                    updateParticleSettings();
+                });
+            });
+            
+            // Environment buttons
+            document.querySelectorAll('[data-environment]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('[data-environment]').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    state.currentEnvironment = btn.dataset.environment;
+                    updateParticleSettings();
+                });
+            });
+            
+            // Time buttons
+            document.querySelectorAll('[data-time]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('[data-time]').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    state.currentTimeMode = btn.dataset.time;
+                    updateParticleSettings();
+                });
+            });
+            
+            // Deposit mode toggle
+            const depositBtn = document.getElementById('toggle-deposit');
+            depositBtn.addEventListener('click', () => {
+                state.depositMode = !state.depositMode;
+                depositBtn.classList.toggle('deposit-mode');
+                depositBtn.textContent = state.depositMode ? 
+                    'Modo depositar activado - Click en el océano' : 
+                    'Click para depositar desechos';
+                
+                if (state.depositMode) {
+                    document.getElementById('particle-canvas').style.cursor = 'crosshair';
+                } else {
+                    document.getElementById('particle-canvas').style.cursor = 'default';
+                }
+            });
+            
+            // Clear particles
+            document.getElementById('clear-particles').addEventListener('click', clearAllParticles);
+            
+            // Toggle data panel
+            const dataBtn = document.getElementById('toggle-data');
+            const dataPanel = document.getElementById('data-panel');
+            dataBtn.addEventListener('click', () => {
+                state.dataVisible = !state.dataVisible;
+                dataPanel.classList.toggle('visible');
+                dataBtn.textContent = state.dataVisible ? 
+                    'Ocultar datos de composición' : 
+                    'Mostrar datos de composición';
+                
+                // Animate bars
+                if (state.dataVisible) {
+                    setTimeout(() => {
+                        document.querySelectorAll('.data-bar-fill').forEach(bar => {
+                            bar.style.width = bar.dataset.target + '%';
+                        });
+                    }, 100);
+                }
+            });
+            
+            // Canvas click for depositing
+            const canvas = document.getElementById('particle-canvas');
+            canvas.addEventListener('click', (e) => {
+                if (state.depositMode) {
+                    createParticleAtPosition(e.clientX, e.clientY);
+                }
+            });
+            
+            // Canvas hover for particle info (improved detection)
+            canvas.addEventListener('mousemove', (e) => {
+                if (state.depositMode) return;
+                
+                // Raycasting for particle detection with larger threshold
+                const rect = canvas.getBoundingClientRect();
+                const mouse = new THREE.Vector2();
+                mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+                mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+                
+                const raycaster = new THREE.Raycaster();
+                raycaster.setFromCamera(mouse, camera);
+                
+                // Increase the threshold for easier selection
+                raycaster.params.Points.threshold = 0.3;
+                raycaster.params.Line.threshold = 0.3;
+                
+                const intersects = raycaster.intersectObjects(scene.children, true);
+                
+                // Find the first particle mesh
+                let found = false;
+                for (let i = 0; i < intersects.length; i++) {
+                    if (intersects[i].object.userData.particle) {
+                        const particle = intersects[i].object.userData.particle;
+                        showParticleInfo(e.clientX, e.clientY, particle);
+                        found = true;
+                        break;
+                    }
+                }
+                
+                if (!found) {
+                    hideParticleInfo();
+                }
+            });
+
+            // Help button
+            const helpButton = document.getElementById('help-button');
+            const helpModal = document.getElementById('help-modal');
+            const helpClose = document.querySelector('.help-close');
+
+            helpButton.addEventListener('click', () => {
+                helpModal.classList.add('show');
+            });
+
+            helpClose.addEventListener('click', () => {
+                helpModal.classList.remove('show');
+            });
+
+            helpModal.addEventListener('click', (e) => {
+                if (e.target === helpModal) {
+                    helpModal.classList.remove('show');
+                }
+            });
+
+            // Close modal with ESC key
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && helpModal.classList.contains('show')) {
+                    helpModal.classList.remove('show');
+                }
+            });
+        }
+
+        // ============================================
+        // UI UTILITIES
+        // ============================================
+        function showNotification(message) {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.classList.add('show');
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 5000);
+        }
+
+        function showParticleInfo(x, y, particle) {
+            const info = document.getElementById('particle-info');
+            const typeNames = {
+                fibre: 'Fibra',
+                film: 'Película',
+                granule: 'Gránulo',
+                fragment: 'Fragmento'
+            };
+            
+            document.getElementById('info-type').textContent = typeNames[particle.type];
+            document.getElementById('info-composition').textContent = particle.composition;
+            document.getElementById('info-origin').textContent = particle.origin;
+            document.getElementById('info-size').textContent = Math.round(particle.size * 100) + ' μm';
+            document.getElementById('info-distance').textContent = particle.distance + ' km';
+            
+            // Position tooltip with offset and keep it on screen
+            let left = x + 20;
+            let top = y + 20;
+            
+            // Get info dimensions (approximate)
+            const infoWidth = 280;
+            const infoHeight = 160;
+            
+            // Keep tooltip on screen
+            if (left + infoWidth > window.innerWidth) {
+                left = x - infoWidth - 20;
+            }
+            if (top + infoHeight > window.innerHeight) {
+                top = y - infoHeight - 20;
+            }
+            
+            info.style.left = left + 'px';
+            info.style.top = top + 'px';
+            info.classList.add('visible');
+        }
+
+        function hideParticleInfo() {
+            document.getElementById('particle-info').classList.remove('visible');
+        }
+
+        // ============================================
+        // WINDOW RESIZE
+        // ============================================
+        function handleResize() {
+            const container = document.getElementById('canvas-container');
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        window.addEventListener('resize', handleResize);
+
+        // ============================================
+        // ZOOM FUNCTIONALITY WITH MOUSE WHEEL
+        // ============================================
+        let targetZoom = 15; // Initial camera z position
+        let currentZoom = 15;
+        const minZoom = 5;   // Closest zoom (particles appear larger)
+        const maxZoom = 30;  // Farthest zoom (particles appear smaller)
+        let zoomIndicatorTimeout;
+
+        function handleWheel(event) {
+            event.preventDefault();
+            
+            // Determine zoom direction
+            const delta = event.deltaY;
+            const zoomSpeed = 0.5;
+            
+            if (delta > 0) {
+                // Scroll down - zoom out (particles smaller)
+                targetZoom = Math.min(targetZoom + zoomSpeed, maxZoom);
+            } else {
+                // Scroll up - zoom in (particles larger)
+                targetZoom = Math.max(targetZoom - zoomSpeed, minZoom);
+            }
+
+            // Show zoom indicator
+            const indicator = document.getElementById('zoom-indicator');
+            indicator.classList.add('visible');
+            
+            // Update zoom level display (inverted scale: closer = higher %)
+            const zoomPercent = Math.round(((maxZoom - targetZoom) / (maxZoom - minZoom)) * 100 + 50);
+            document.getElementById('zoom-level').textContent = zoomPercent + '%';
+            
+            // Hide indicator after 2 seconds
+            clearTimeout(zoomIndicatorTimeout);
+            zoomIndicatorTimeout = setTimeout(() => {
+                indicator.classList.remove('visible');
+            }, 2000);
+        }
+
+        // Add wheel event listener to canvas
+        document.getElementById('particle-canvas').addEventListener('wheel', handleWheel, { passive: false });
+
+        // Smooth zoom interpolation
+        function updateZoom() {
+            // Smooth interpolation
+            currentZoom += (targetZoom - currentZoom) * 0.1;
+            camera.position.z = currentZoom;
+        }
+
+        // ============================================
+        // INITIALIZATION
+        // ============================================
+        function init() {
+            console.log('🌊 Inicializando Ocean Plastic...');
+            
+            initThreeJS();
+            initUIControls();
+            
+            // Create initial particles
+            console.log('🗑️ Generando contaminación inicial...');
+            createParticles(400);
+            
+            // Start animation
+            console.log('▶️ Iniciando simulación...');
+            animate();
+            
+            // Hide loading screen
+            setTimeout(() => {
+                document.getElementById('loading').classList.add('hidden');
+                
+                // Show zoom indicator briefly as a tip
+                const indicator = document.getElementById('zoom-indicator');
+                document.getElementById('zoom-level').textContent = '100%';
+                indicator.classList.add('visible');
+                
+                // Show notification about zoom
+                showNotification('💡 Usa la rueda del mouse para hacer zoom y explorar los microplásticos más de cerca');
+                
+                // Hide zoom indicator after 5 seconds
+                setTimeout(() => {
+                    indicator.classList.remove('visible');
+                }, 5000);
+            }, 1000);
+            
+            console.log('✅ Sistema listo');
+        }
+
+        // Start when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+    </script>
+</body>
+</html>
